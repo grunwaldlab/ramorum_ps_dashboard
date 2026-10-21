@@ -1,0 +1,9 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+ramorum_dashboard/.quarto
+ramorum_dashboard/_site
+ramorum_dashboard/packages.bib
+ramorum_dashboard/dashboard_cache

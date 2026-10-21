@@ -1,0 +1,263 @@
+---
+title: "Surveillance of *P. ramorum*"
+format:
+  dashboard:
+    theme: [journal, custom.scss]
+    self-contained: true
+    embed-resources: true
+    include-in-header:
+      text: |
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    page-footer:
+    left: |
+      ![](images/nf-core-logo.png){height=30px} [![](images/logo-transparent.png){height=30px}](https://nf-co.re/pathogensurveillance)
+    center: |
+      [![](images/usda-logo-color.png){height=30px}](https://www.usda.gov/style-guide/logo)  [![](images/OSU_horizontal_2C_O_over_B.png){height=30px}](https://oregonstate.edu)
+    right:
+      - icon: github
+        href: https://github.com/nf-core/pathogensurveillance
+        aria-label: nf-core PathogenSurveillance GitHub
+params:
+  inputs: "C:/Users/cwpri/test_output"
+---
+
+```{r load, include=FALSE}
+remotes::install_github("grunwaldlab/PathoSurveilR@dev")
+library(PathoSurveilR)
+```
+
+# Overview {orientation="columns"}
+## Column {width=10%}
+```{r r_setup, include=FALSE}
+run_info <- find_ps_data(params$inputs, target = 'pipeline_run_info', simplify = TRUE)
+group <- run_info$group_id
+sample_data <- find_ps_data(params$inputs, target = 'sample_metadata', simplify = TRUE)
+reference_data <- find_ps_data(params$inputs, target = 'reference_metadata', simplify = TRUE)
+message_data <- find_ps_data(params$inputs, target = 'messages', simplify = TRUE)
+no_messages <- nrow(message_data) == 0
+```
+::: {.valuebox title="Sample Count" color=#d4edda}
+`r nrow(sample_data)`
+:::
+
+::: {.valuebox title="Core Genes Considered" color=#d4edda}
+\# Core Genes
+:::
+
+::: {.valuebox title="Last Updated" color=#d4edda}
+`r format(Sys.time(), '%B %d, %Y')`
+:::
+
+
+## Column {width=45%}
+```{r}
+has_multigene_tree <- ! is.null(PathoSurveilR::find_ps_paths(params$inputs, target = 'multigene_tree', must_exist = F))
+```
+
+::: {.card title="Multigene Phylogeny"}
+```{r plot_multigene_tree_dash, eval=has_multigene_tree, fig.height=8}
+plot_tree(params$inputs, target = 'multigene_tree')
+```
+
+```{r, results='asis', eval=!has_multigene_tree}
+cat('Could not generate core genome phylogeny.')
+```
+:::
+
+## Column {width=45%}
+:::{.card title="Sample Distribution"}
+```{r plot_map_widget_dash, eval = !is.null(params$inputs) }
+plot_map_widget(params$inputs)
+```
+:::
+# Genetic Diversity {orientation="columns"}
+
+## Column {width=10%}
+::: {.valuebox title="Sample Count" color=#d4edda}
+`r nrow(sample_data)`
+:::
+
+::: {.valuebox title="SNPs" color=#d4edda}
+\# SNPs
+:::
+
+::: {.valuebox title="Last Updated" color=#d4edda}
+`r format(Sys.time(), '%B %d, %Y')`
+:::
+
+
+## Column {width=45%}
+```{r}
+align_data <- find_ps_paths(params$inputs, target = 'variants_fasta', simplify = TRUE, must_exist = FALSE)
+```
+
+```{r eval = ! is.null(align_data)}
+threshold_options <- c(0.0001, 0.001, 0.01, 0.1)
+alignments <- find_ps_data(params$inputs, target = 'variants_fasta')
+alignments <- alignments[!unlist(lapply(alignments, is.null))]
+alignments <- alignments[unlist(lapply(alignments, nrow)) > 3]
+align_data <- align_data[align_data$path %in% names(alignments), ]
+sample_data <- find_ps_data(params$inputs, target = 'sample_metadata', simplify = TRUE)
+ref_data <- find_ps_data(params$inputs, target = 'reference_metadata', simplify = TRUE)
+```
+
+```{r plot_msns_dash, results='asis', eval = ! is.null(align_data) && nrow(align_data) > 0, cache = TRUE}
+#| title: "Minimum Spanning Networks"
+# Find which columns are used to provide colors to the trees, if any
+ids_used <- unique(unlist(lapply(alignments, function(a) {
+    if (is.null(a)) {
+        return(character(0))
+    } else {
+        return(rownames(a))
+    }
+})))
+color_by_text <- as.character(sample_data$color_by[sample_data$sample_id %in% ids_used])
+color_by_cols <- unique(unlist(strsplit(color_by_text, split = ';')))
+color_by_cols <- color_by_cols[! is.na(color_by_cols)]
+
+plot_one <- function(ref_id, threshold, color_by = NULL) {
+    align <- alignments[[align_data$path[align_data$reference_id == ref_id]]]
+    align_without_ref <- align[rownames(align) != ref_id, ]
+    PathoSurveilR:::make_MSN(align_without_ref, sample_data, user_seed = 1, snp_diff_prop = threshold, population = color_by)
+}
+
+plot_vars <- list(
+    Reference = align_data$reference_id,
+    Threshold = threshold_options
+)
+if (length(color_by_cols) > 0) {
+    plot_vars$Color = unlist(color_by_cols)
+}
+print_figures_with_selector(plot_one, selector = plot_vars, id_prefix = 'snp-msn', width = 1500, height = 1200, res = 175)
+```
+
+```{r, results='asis', eval = is.null(align_data) || nrow(align_data) == 0}
+#| title: "Minimum Spanning Networks"
+cat('
+Could not generate minimum spanning networks.
+This can happen when there are too few samples or too few SNPs.
+See staus messages at the start of the report for details.
+')
+```
+
+## Column {width=45%}
+
+```{r}
+snp_tree_path_data <- find_ps_paths(params$inputs, target = 'variant_tree', must_exist = FALSE)
+```
+
+```{r plot_snp_trees_dash, eval = ! is.null(snp_tree_path_data), fig.height=8}
+#| title: "SNP Trees"
+plot_tree(params$inputs, target = 'variant_tree')
+```
+
+```{r results='asis', eval = is.null(snp_tree_path_data)}
+cat('
+There is no tree to draw.
+This can happen when there are too few samples or too few SNPs.
+See staus messages at the start of the report for details.
+')
+```
+# Data
+:::{.card title="Input Data"}
+```{r}
+PathoSurveilR::sample_meta_table(params$inputs, interactive = TRUE)
+```
+:::
+
+# About
+## Row {height=30%}
+:::{.card title="Methods"}
+The `pathogen surveillance` pipeline used the following tools that should be referenced as appropriate:
+
+- A sample is first identified to genus using sendsketch and further identified to species using sourmash [@brown2016sourmash].
+- The `nextflow` data-driven computational pipeline enables deployment of complex parallel and reactive workflows [@di2017nextflow].
+:::
+
+## Row {height=70%}
+:::{.panel-tabset}
+## <i class="bi bi-gear-wide-connected"></i> Analysis Software
+```{r}
+version_data <- find_ps_data(params$inputs, target = 'pipeline_version_info')[[1]]
+reflist <- read.csv(file = 'references.csv')
+version_data$citation <- reflist[match(version_data$program, reflist$program), 'citation']
+knitr::kable(version_data)
+```
+
+## R Packages
+```{r, include=FALSE}
+knitr::write_bib(c(.packages(), 'knitr', 'rmarkdown'), 'packages.bib')
+```
+```{r}
+sessionInfo()
+```
+
+## <i class="bi bi-file-earmark-pdf"></i> References
+:::{.card}
+::: {#refs}
+:::
+:::
+
+## About
+:::{.card}
+#### <i class="bi bi-file-earmark-person"></i> Contributors
+The **`nf-core/pathogen surveillance` pipeline** was developed by: Zach Foster, Martha Sudermann, Camilo Parada-Rojas, Logan Blair, Fernanda Iruegas-Bocardo, Ricardo Alcalá-Briseño, [Alexandra Weisberg](https://alexandra-weisberg.com/), [Jeff Chang](http://changlab.cgrb.oregonstate.edu/) and [Nik Grünwald](http://grunwaldlab.cgrb.oregonstate.edu/).
+
+#### <i class="bi bi-wallet2"></i> Funding
+This pipeline is supported by  [![](images/usda-logo-color.png){height=15px}](https://www.usda.gov/style-guide/logo) NIFA grants 2021-67021-34433, 2023-67013-39918 to JHC and NJG and ARS Project 2072-22000-045-000-D to NJG.
+
+#### <i class="bi bi-github"></i> Contribute
+To contribute, provide feedback, or report bugs please visit our [github repository](https://github.com/nf-core/pathogensurveillance).
+
+#### <i class="bi bi-unlock2"></i> Citations
+Please cite this pipeline and nf-core in publications as follows:
+
+<i class="bi bi-file-earmark-pdf-fill"></i> Foster, ZSL, Sudermann, MA, Parada Rojas, CH, Blair, LK, Iruegas Bocardo, F, Dhakal, U, Weisberg, AJ, Phan, H, Chang, JH, Grunwald, NJ. **PathogenSurveillance: an automated pipeline for population genomic analyses and pathogen identification.** BioRxiv 2025 2025.10.31.685798. doi: https://doi.org/10.1101/2025.10.31.685798
+
+
+<i class="bi bi-file-earmark-pdf-fill"></i> Di Tommaso, Paolo, Maria Chatzou, Evan W Floden, Pablo Prieto Barja, Emilio Palumbo, and Cedric Notredame. 2017. Nextflow Enables Reproducible Computational Workflows. Nature Biotechnology 35: 316--19. [https://doi.org/10.1038/nbt.3820](https://doi.org/10.1038/nbt.3820).
+
+#### <i class="bi bi-wrench-adjustable"></i> Other tools
+Icons for this report were sampled from [Bootstrap Icons](https://icons.getbootstrap.com), [Freepick](https://www.freepik.com), [Iconify](https://icon-sets.iconify.design), [Academicons](https://jpswalsh.github.io/academicons/), and [Font Awesome](https://fontawesome.com) and the report was rendered in quarto {{< iconify simple-icons:quarto >}}.
+:::
+
+```{=html}
+<script>
+  (function () {
+    const info = {
+      "Multigene Phylogeny": "This is a multigene phylogeny of samples with reference genomes for context. It is the most robust identification provided by this pipeline, but taxonomic coverage is still limited by the availability of similar reference sequences.",
+      "Sample Distribution": "This is a map of the distribution of samples with associated spatial metadata.",
+      "SNP Trees": "This is a representation of a Single Nucleotide Polymorphism (SNP) tree, depicting the genetic relationships among samples in comparison to a reference assembly. The tree is less robust than a core gene phylogeny, but it does offer one way to visualize the genetic diversity among samples.",
+      "Minimum Spanning Networks": "This figure depicts a minimium spanning network (MSN). The nodes represent unique multilocus genotypes, and the size of nodes is proportional to the # number of samples that share the same genotype. The edges represent the SNP differences between two given genotypes, and the darker the color of the edges, the fewer SNP differences between the two."
+    };
+
+    function addInfoButtons() {
+      document.querySelectorAll(".card-header").forEach(function (header) {
+        const title = header.textContent.trim();
+        if (!(title in info) || header.querySelector(".info-btn")) return;
+
+        const btn = document.createElement("a");
+        btn.className = "info-btn";
+        btn.tabIndex = 0;
+        btn.setAttribute("role", "button");
+        btn.setAttribute("aria-label", "More information about " + title);
+        btn.innerHTML = '<i class="bi bi-info-circle"></i>';
+        header.appendChild(btn);
+
+        new bootstrap.Popover(btn, {
+          trigger: "focus",
+          placement: "bottom",
+          container: "body",
+          html: true,
+          title: "About this plot",
+          content: info[title]
+        });
+      });
+    }
+
+    if (document.readyState === "complete") addInfoButtons();
+    else window.addEventListener("load", addInfoButtons);
+  })();
+</script>
+```
+:::
