@@ -25,6 +25,16 @@
 
 .html-fill-item.bslib-grid { display: grid; grid-template-rows: subgrid; }
 
+.html-fill-item.html-fill-container.bslib-grid {
+  align-items: stretch !important;
+  justify-items: stretch !important;
+}
+
+/* Let the MSN column's single row fill the available height */
+.bslib-grid:has(> .card[data-title="Minimum Spanning Networks"]) {
+  grid-template-rows: minmax(0, 1fr) !important;
+}
+
 // remove top bar element padding
 .bslib-gap-spacing {
   padding: 0 !important;
