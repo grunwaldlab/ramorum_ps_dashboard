@@ -22,7 +22,6 @@ params:
 ---
 
 ```{r load, include=FALSE}
-remotes::install_github("grunwaldlab/PathoSurveilR@dev")
 library(PathoSurveilR)
 ```
 
