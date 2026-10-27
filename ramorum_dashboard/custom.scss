@@ -56,7 +56,7 @@ h1, h2, h3, h4 { font-family: var(--ps-serif); color: var(--ps-ink); }
 
 .card-body { font-size: 0.9rem !important; line-height: 1.5; }
 
-/* ---------- Navbar & footer ---------- */
+/* ---------- Navbar ---------- */
 
 .navbar {
   background-color: #fff !important;
@@ -93,11 +93,37 @@ h1, h2, h3, h4 { font-family: var(--ps-serif); color: var(--ps-ink); }
   border-color: transparent transparent var(--ps-accent) transparent !important;
 }
 
-.nav-footer {
-  background-color: var(--ps-accent-soft) !important;
-  border-top: 1px solid var(--ps-rule);
-  font-size: 0.8rem;
-  color: var(--ps-muted);
+.navbar { position: relative; }
+
+#nav-logos {
+  position: absolute;
+  right: 64px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center;
+  gap: 14px;
+  margin: 0;
+  z-index: 5;
+}
+
+#nav-logos a {
+  display: inline-flex !important;
+  flex: 0 0 auto;
+  align-items: center;
+  border: none;
+  width: auto !important;
+}
+#nav-logos img {
+  height: 20px;
+  width: auto;
+  display: block;
+}
+
+.bi-github::before {
+  color: var(--ps-ink) !important;
 }
 
 /* ---------- Cards ---------- */
